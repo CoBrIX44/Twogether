@@ -1,36 +1,73 @@
-import React from 'react';
-import { Camera, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { Camera, Sparkles, Wifi } from 'lucide-react';
 
 interface CameraPanelProps {
   personLabel: string;
   videoRef?: React.RefObject<HTMLVideoElement>;
+  stream?: MediaStream | null;
   isMirrored?: boolean;
   isActive?: boolean;
   capturedPreview?: string | null;
   isLoading?: boolean;
+  statusBadge?: string;
+  roleBadge?: string;
 }
 
 export const CameraPanel: React.FC<CameraPanelProps> = ({
   personLabel,
   videoRef,
+  stream,
   isMirrored = true,
   isActive = true,
   capturedPreview,
   isLoading = false,
+  statusBadge,
+  roleBadge,
 }) => {
+  const internalVideoRef = useRef<HTMLVideoElement>(null);
+
+  // If a stream is passed (e.g. remote stream or local stream), attach to video element
+  useEffect(() => {
+    const videoEl = videoRef ? videoRef.current : internalVideoRef.current;
+    if (videoEl && stream) {
+      videoEl.srcObject = stream;
+      videoEl.play().catch((err) => {
+        console.warn('Auto-play stream caught:', err);
+      });
+    }
+  }, [stream, videoRef]);
+
   return (
     <div className="flex-1 flex flex-col items-center w-full">
       {/* Label Badge */}
       <div className="flex items-center justify-between w-full max-w-[340px] px-2 mb-2">
         <span className="font-display font-semibold text-xs sm:text-sm text-ink flex items-center gap-1.5">
-          <span className={`w-2.5 h-2.5 rounded-full ${isActive ? 'bg-pink-deep animate-pulse' : 'bg-muted'}`} />
-          {personLabel}
+          <span
+            className={`w-2.5 h-2.5 rounded-full ${
+              isActive ? 'bg-pink-deep animate-pulse' : 'bg-muted'
+            }`}
+          />
+          <span className="truncate max-w-[160px]">{personLabel}</span>
+          {roleBadge && (
+            <span className="text-[10px] font-mono bg-pink/15 text-pink-deep px-1.5 py-0.2 rounded-pill">
+              {roleBadge}
+            </span>
+          )}
         </span>
-        {isMirrored && (
-          <span className="text-[10px] font-body bg-pink/15 text-pink-deep px-2 py-0.5 rounded-pill border border-pink/20">
-            Mirrored
-          </span>
-        )}
+
+        <div className="flex items-center gap-1.5">
+          {statusBadge && (
+            <span className="text-[10px] font-body bg-mint/30 text-emerald-700 px-2 py-0.5 rounded-pill border border-emerald-300 flex items-center gap-1">
+              <Wifi className="w-2.5 h-2.5" />
+              {statusBadge}
+            </span>
+          )}
+          {isMirrored && (
+            <span className="text-[10px] font-body bg-pink/15 text-pink-deep px-2 py-0.5 rounded-pill border border-pink/20">
+              Mirrored
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Camera Viewport (3:4 ratio container) */}
@@ -54,7 +91,7 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
           />
         ) : (
           <video
-            ref={videoRef}
+            ref={videoRef || internalVideoRef}
             autoPlay
             playsInline
             muted

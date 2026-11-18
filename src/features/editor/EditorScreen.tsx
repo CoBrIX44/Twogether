@@ -11,12 +11,13 @@ import {
   Palette,
   Sticker,
   Type,
+  LayoutTemplate,
   ArrowRight,
   ArrowLeft,
 } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
-import { CLASSIC_3X2_TEMPLATE, STRIP_THEMES } from '@/lib/templates';
+import { CLASSIC_3X2_TEMPLATE, STRIP_THEMES, TEMPLATE_REGISTRY } from '@/lib/templates';
 import { FILTER_PRESETS } from '@/lib/render/filters';
 import { composeStrip } from '@/lib/render/composeStrip';
 import { FilterId } from '@/types';
@@ -24,11 +25,13 @@ import { StickerStage } from './StickerStage';
 import { StickerTray } from './StickerTray';
 import { Button } from '@/components/ui/Button';
 
-type EditorTab = 'filters' | 'themes' | 'stickers' | 'text';
+type EditorTab = 'templates' | 'stickers' | 'filters' | 'themes' | 'text';
 
 export const EditorScreen: React.FC = () => {
   const { frames, setStep } = useSessionStore();
   const {
+    selectedTemplateId,
+    setTemplate,
     selectedFilter,
     setFilter,
     selectedThemeId,
@@ -49,20 +52,22 @@ export const EditorScreen: React.FC = () => {
     canRedo,
   } = useEditorStore();
 
-  const [activeTab, setActiveTab] = useState<EditorTab>('stickers');
+  const [activeTab, setActiveTab] = useState<EditorTab>('templates');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  const currentTemplate =
+    TEMPLATE_REGISTRY.find((t) => t.id === selectedTemplateId) || CLASSIC_3X2_TEMPLATE;
   const currentTheme = STRIP_THEMES.find((t) => t.id === selectedThemeId) || STRIP_THEMES[0];
   const currentFilterPreset = FILTER_PRESETS[selectedFilter] || FILTER_PRESETS.none;
 
-  // Re-generate base strip preview whenever theme, filter, caption, or date changes
+  // Re-generate base strip preview whenever template, theme, filter, caption, or date changes
   useEffect(() => {
     let isCancelled = false;
 
     const generatePreview = async () => {
       try {
         const canvas = await composeStrip({
-          template: CLASSIC_3X2_TEMPLATE,
+          template: currentTemplate,
           theme: currentTheme,
           filter: currentFilterPreset,
           frames,
@@ -82,9 +87,10 @@ export const EditorScreen: React.FC = () => {
     return () => {
       isCancelled = true;
     };
-  }, [currentTheme, currentFilterPreset, frames, caption, dateText]);
+  }, [currentTemplate, currentTheme, currentFilterPreset, frames, caption, dateText]);
 
   const tabs: { id: EditorTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'templates', label: 'Frames', icon: <LayoutTemplate className="w-4 h-4" /> },
     { id: 'stickers', label: 'Stickers', icon: <Sticker className="w-4 h-4" /> },
     { id: 'filters', label: 'Filters', icon: <Sparkles className="w-4 h-4" /> },
     { id: 'themes', label: 'Theme', icon: <Palette className="w-4 h-4" /> },
@@ -202,8 +208,8 @@ export const EditorScreen: React.FC = () => {
         <div className="lg:col-span-6 flex flex-col items-center">
           <StickerStage
             previewUrl={previewUrl}
-            baseWidth={CLASSIC_3X2_TEMPLATE.width}
-            baseHeight={CLASSIC_3X2_TEMPLATE.height}
+            baseWidth={currentTemplate.width}
+            baseHeight={currentTemplate.height}
           />
           <p className="text-[11px] text-muted text-center mt-2">
             Tip: Tap any sticker to move, rotate, resize, or delete it!
@@ -229,6 +235,55 @@ export const EditorScreen: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Tab 0: Frames & Templates */}
+          {activeTab === 'templates' && (
+            <div className="bg-surface rounded-card p-4 border border-pink/20 shadow-subtle">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-display font-semibold text-ink">
+                  Photo Booth Frames & Themes
+                </span>
+                <span className="text-[11px] text-muted">Tap to switch frame</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {TEMPLATE_REGISTRY.map((t) => {
+                  const isSelected = selectedTemplateId === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setTemplate(t.id)}
+                      className={`flex flex-col items-center p-2.5 rounded-card border-2 transition-all text-left ${
+                        isSelected
+                          ? 'border-pink-deep bg-pink/15 shadow-subtle scale-102 ring-2 ring-pink-deep/30'
+                          : 'border-pink/20 hover:border-pink-deep/50 bg-bg'
+                      }`}
+                    >
+                      <div className="w-full aspect-[3/4] rounded-md mb-2 overflow-hidden bg-white/80 border border-pink/20 flex items-center justify-center relative p-1 shadow-xs">
+                        {t.overlayImageUrl ? (
+                          <img
+                            src={t.overlayImageUrl}
+                            alt={t.name}
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-pink/5 rounded border border-dashed border-pink/30">
+                            <span className="text-xs font-display font-semibold text-pink-deep">Classic</span>
+                            <span className="text-[10px] text-muted">3×2 Grid</span>
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs font-display font-semibold text-ink text-center w-full truncate">
+                        {t.name}
+                      </span>
+                      <span className="text-[10px] text-muted text-center w-full truncate">
+                        {t.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Tab 1: Stickers & Mascots Tray */}
           {activeTab === 'stickers' && (

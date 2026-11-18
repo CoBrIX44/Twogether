@@ -1,11 +1,13 @@
 import React from 'react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Loader2 } from 'lucide-react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg' | 'pill-lg';
   isPulse?: boolean;
+  isLoading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
 }
@@ -15,6 +17,7 @@ export const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   size = 'md',
   isPulse = false,
+  isLoading = false,
   leftIcon,
   rightIcon,
   className,
@@ -38,10 +41,10 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const sizes = {
-    sm: 'text-xs px-3.5 py-1.5 gap-1.5 min-h-[36px]',
-    md: 'text-sm px-5 py-2.5 gap-2 min-h-[44px]',
-    lg: 'text-base px-6 py-3 gap-2.5 min-h-[50px]',
-    'pill-lg': 'text-lg px-8 py-3.5 gap-3 min-h-[56px] shadow-booth font-semibold',
+    sm: 'text-xs sm:text-sm px-3.5 py-1.5 gap-1.5 min-h-[36px]',
+    md: 'text-sm sm:text-base px-5 py-2.5 gap-2 min-h-[44px]',
+    lg: 'text-base sm:text-lg px-6 py-3 gap-2.5 min-h-[50px]',
+    'pill-lg': 'text-lg sm:text-xl px-8 py-3.5 gap-3 min-h-[56px] shadow-booth font-semibold',
   };
 
   return (
@@ -55,12 +58,16 @@ export const Button: React.FC<ButtonProps> = ({
           className
         )
       )}
-      disabled={disabled}
+      disabled={disabled || isLoading}
       {...props}
     >
-      {leftIcon && <span className="inline-flex shrink-0">{leftIcon}</span>}
+      {isLoading ? (
+        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+      ) : (
+        leftIcon && <span className="inline-flex shrink-0">{leftIcon}</span>
+      )}
       <span>{children}</span>
-      {rightIcon && <span className="inline-flex shrink-0">{rightIcon}</span>}
+      {!isLoading && rightIcon && <span className="inline-flex shrink-0">{rightIcon}</span>}
     </button>
   );
 };

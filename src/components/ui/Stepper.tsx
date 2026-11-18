@@ -61,7 +61,7 @@ export const Stepper: React.FC<StepperProps> = ({ currentStep }) => {
                 {isDone ? <Check className="w-4 h-4 stroke-[3]" /> : step.icon}
               </div>
               <span
-                className={`text-[11px] font-display mt-1.5 transition-colors whitespace-nowrap ${
+                className={`text-xs font-display mt-1.5 transition-colors whitespace-nowrap ${
                   isActive ? 'font-bold text-pink-deep' : 'text-muted'
                 }`}
               >

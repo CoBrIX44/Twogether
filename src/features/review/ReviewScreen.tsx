@@ -1,20 +1,27 @@
 import React from 'react';
 import { Sparkles, RotateCcw } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
+import { remoteManager } from '@/lib/remote/remoteManager';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 
 export const ReviewScreen: React.FC = () => {
-  const { frames, setStep, setRetakeTargetRound, setCurrentRound } = useSessionStore();
+  const { mode, frames, setStep, setRetakeTargetRound, setCurrentRound } = useSessionStore();
 
   const handleRetakeRound = (roundIndex: number) => {
     setRetakeTargetRound(roundIndex);
     setCurrentRound(roundIndex);
     setStep('capture');
+    if (mode === 'together-remote') {
+      remoteManager.send({ type: 'RETAKE_ROUND', round: roundIndex });
+    }
   };
 
   const handleProceedToEditor = () => {
     setStep('editor');
+    if (mode === 'together-remote') {
+      remoteManager.send({ type: 'PROCEED_STEP', step: 'editor' });
+    }
   };
 
   // Group frames by round (0, 1, 2)

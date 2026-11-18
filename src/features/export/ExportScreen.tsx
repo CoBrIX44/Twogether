@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
-import { CLASSIC_3X2_TEMPLATE, STRIP_THEMES } from '@/lib/templates';
+import { CLASSIC_3X2_TEMPLATE, STRIP_THEMES, TEMPLATE_REGISTRY } from '@/lib/templates';
 import { FILTER_PRESETS } from '@/lib/render/filters';
 import { flattenStripToCanvas } from '@/lib/render/flattenExport';
 import { exportPhotoStrip } from '@/lib/render/exporter';
@@ -22,6 +22,7 @@ import { Card } from '@/components/ui/Card';
 export const ExportScreen: React.FC = () => {
   const { frames, resetSession, setStep } = useSessionStore();
   const {
+    selectedTemplateId,
     selectedFilter,
     selectedThemeId,
     stickers,
@@ -39,6 +40,8 @@ export const ExportScreen: React.FC = () => {
 
   const confettiTriggeredRef = useRef(false);
 
+  const currentTemplate =
+    TEMPLATE_REGISTRY.find((t) => t.id === selectedTemplateId) || CLASSIC_3X2_TEMPLATE;
   const currentTheme = STRIP_THEMES.find((t) => t.id === selectedThemeId) || STRIP_THEMES[0];
   const currentFilterPreset = FILTER_PRESETS[selectedFilter] || FILTER_PRESETS.none;
 
@@ -49,7 +52,7 @@ export const ExportScreen: React.FC = () => {
     const buildExportCanvas = async () => {
       try {
         const canvas = await flattenStripToCanvas({
-          template: CLASSIC_3X2_TEMPLATE,
+          template: currentTemplate,
           theme: currentTheme,
           filter: currentFilterPreset,
           frames,
@@ -82,7 +85,7 @@ export const ExportScreen: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentTheme, currentFilterPreset, frames, stickers, caption, dateText]);
+  }, [currentTemplate, currentTheme, currentFilterPreset, frames, stickers, caption, dateText]);
 
   // Execute download
   const handleDownload = async () => {

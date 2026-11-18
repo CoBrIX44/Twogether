@@ -5,6 +5,7 @@ interface EditorSnapshot {
   stickers: PlacedSticker[];
   selectedFilter: FilterId;
   selectedThemeId: string;
+  selectedTemplateId: string;
   caption: string;
   dateText: string;
 }
@@ -12,6 +13,7 @@ interface EditorSnapshot {
 interface EditorState {
   selectedFilter: FilterId;
   selectedThemeId: string;
+  selectedTemplateId: string;
   stickers: PlacedSticker[];
   selectedStickerId: string | null;
   caption: string;
@@ -24,6 +26,7 @@ interface EditorState {
   // Actions
   setFilter: (filterId: FilterId) => void;
   setTheme: (themeId: string) => void;
+  setTemplate: (templateId: string) => void;
   setCaption: (caption: string) => void;
   setDateText: (dateText: string) => void;
   selectSticker: (id: string | null) => void;
@@ -63,11 +66,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
   };
 
   const getSnapshot = (): EditorSnapshot => {
-    const { stickers, selectedFilter, selectedThemeId, caption, dateText } = get();
+    const { stickers, selectedFilter, selectedThemeId, selectedTemplateId, caption, dateText } = get();
     return {
       stickers: JSON.parse(JSON.stringify(stickers)),
       selectedFilter,
       selectedThemeId,
+      selectedTemplateId,
       caption,
       dateText,
     };
@@ -76,6 +80,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   return {
     selectedFilter: 'none',
     selectedThemeId: 'blush',
+    selectedTemplateId: 'classic-3x2',
     stickers: [],
     selectedStickerId: null,
     caption: 'twogether ♡',
@@ -85,6 +90,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         stickers: [],
         selectedFilter: 'none',
         selectedThemeId: 'blush',
+        selectedTemplateId: 'classic-3x2',
         caption: 'twogether ♡',
         dateText: DEFAULT_DATE,
       },
@@ -98,6 +104,11 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     setTheme: (selectedThemeId) => {
       set({ selectedThemeId });
+      saveSnapshot(getSnapshot());
+    },
+
+    setTemplate: (selectedTemplateId) => {
+      set({ selectedTemplateId });
       saveSnapshot(getSnapshot());
     },
 
@@ -155,7 +166,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const updated = [...stickers];
       const item = updated.splice(idx, 1)[0];
       updated.splice(idx + 1, 0, item);
-      // Re-index zIndex
       updated.forEach((s, i) => (s.zIndex = i + 1));
       set({ stickers: updated });
       saveSnapshot(getSnapshot());
@@ -232,6 +242,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set({
         selectedFilter: 'none',
         selectedThemeId: 'blush',
+        selectedTemplateId: 'classic-3x2',
         stickers: [],
         selectedStickerId: null,
         caption: 'twogether ♡',
@@ -241,6 +252,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
             stickers: [],
             selectedFilter: 'none',
             selectedThemeId: 'blush',
+            selectedTemplateId: 'classic-3x2',
             caption: 'twogether ♡',
             dateText: DEFAULT_DATE,
           },

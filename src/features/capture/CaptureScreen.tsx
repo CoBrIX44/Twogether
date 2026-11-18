@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Camera, FlipHorizontal, Timer, Sparkles } from 'lucide-react';
+import { Camera, FlipHorizontal, Timer, Sparkles, Wifi } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useRemoteStore } from '@/stores/remoteStore';
 import { useCamera } from '@/lib/media/useCamera';
 import { playShutterSound, playCountdownBeep } from '@/lib/media/sound';
+import { remoteManager } from '@/lib/remote/remoteManager';
 import { CameraPanel } from './CameraPanel';
 import { PermissionScreen } from './PermissionScreen';
 
-const POSE_PROMPTS = [
-  'Pose 1: Give your sweetest smile! ✨',
-  'Pose 2: Make a heart together ♡',
-  'Pose 3: Wild silly face or peace signs! ✌️',
+const ROUND_TRANSITION_MESSAGES = [
+  'Round 1 complete! Preparing for Round 2... ✨',
+  'Round 2 complete! Final round coming up! 🎉',
 ];
 
 export const CaptureScreen: React.FC = () => {
   const {
+    mode,
     subMode,
     setSubMode,
     currentRound,
@@ -31,6 +33,16 @@ export const CaptureScreen: React.FC = () => {
   } = useSessionStore();
 
   const {
+    roomCode,
+    role,
+    status: remoteStatus,
+    userName,
+    partnerName,
+    remoteStream,
+  } = useRemoteStore();
+
+  const {
+    stream,
     videoRef,
     devices,
     selectedDeviceId,
@@ -50,7 +62,7 @@ export const CaptureScreen: React.FC = () => {
   const [betweenRoundMessage, setBetweenRoundMessage] = useState<string | null>(null);
   const [isPausedBetweenRounds, setIsPausedBetweenRounds] = useState(false);
 
-  // Buffer for current round when taking turns
+  // Buffer for current round when taking turns in same-device mode
   const [turnBufferFrame, setTurnBufferFrame] = useState<string | null>(null);
 
   const countdownTimerRef = useRef<number | null>(null);
@@ -60,7 +72,14 @@ export const CaptureScreen: React.FC = () => {
     startCamera();
   }, [startCamera]);
 
-  // Execute the snapshot capture
+  // Feed camera stream to remote manager whenever ready
+  useEffect(() => {
+    if (stream) {
+      remoteManager.setLocalStream(stream);
+    }
+  }, [stream]);
+
+  // Execute snapshot capture
   const takeSnapshot = useCallback(() => {
     setIsFlashing(true);
     playShutterSound(isMuted);
@@ -75,8 +94,54 @@ export const CaptureScreen: React.FC = () => {
 
     const roundToCapture = retakeTargetRound !== null ? retakeTargetRound : currentRound;
 
+    // REMOTE BOOTH CAPTURE FLOW
+    if (mode === 'together-remote') {
+      const mySlot = role === 'host' ? 0 : 1;
+      const myFrame = {
+        round: roundToCapture,
+        slot: mySlot,
+        dataUrl,
+        timestamp: Date.now(),
+      };
+
+      addFrame(myFrame);
+
+      // Send local captured frame to partner
+      remoteManager.send({
+        type: 'CAPTURE_FRAME',
+        round: roundToCapture,
+        slot: mySlot,
+        dataUrl,
+      });
+
+      if (retakeTargetRound !== null) {
+        setRetakeTargetRound(null);
+        setTimeout(() => {
+          setStep('review');
+          remoteManager.send({ type: 'PROCEED_STEP', step: 'review' });
+        }, 800);
+        return;
+      }
+
+      if (roundToCapture >= 2) {
+        setTimeout(() => {
+          setStep('review');
+          remoteManager.send({ type: 'PROCEED_STEP', step: 'review' });
+        }, 1200);
+      } else {
+        setIsPausedBetweenRounds(true);
+        setBetweenRoundMessage(ROUND_TRANSITION_MESSAGES[roundToCapture]);
+        setTimeout(() => {
+          setIsPausedBetweenRounds(false);
+          setBetweenRoundMessage(null);
+          setCurrentRound(roundToCapture + 1);
+        }, 2200);
+      }
+      return;
+    }
+
+    // SAME DEVICE FLOW
     if (subMode === 'same-frame') {
-      // Both person slots get the synchronized captured moment
       const frame1 = {
         round: roundToCapture,
         slot: 0,
@@ -100,15 +165,13 @@ export const CaptureScreen: React.FC = () => {
       addFrame(frame1);
       addFrame(frame2);
 
-      // Check if finished 3 rounds
       if (roundToCapture >= 2) {
         setTimeout(() => {
           setStep('review');
         }, 800);
       } else {
-        // Pause and proceed to next round
         setIsPausedBetweenRounds(true);
-        setBetweenRoundMessage(POSE_PROMPTS[roundToCapture + 1]);
+        setBetweenRoundMessage(ROUND_TRANSITION_MESSAGES[roundToCapture]);
         setTimeout(() => {
           setIsPausedBetweenRounds(false);
           setBetweenRoundMessage(null);
@@ -118,17 +181,15 @@ export const CaptureScreen: React.FC = () => {
     } else {
       // Taking turns mode
       if (currentPersonTurn === 0) {
-        // Person 1 just shot, save to buffer and switch to Person 2
         setTurnBufferFrame(dataUrl);
         setCurrentPersonTurn(1);
         setIsPausedBetweenRounds(true);
-        setBetweenRoundMessage('Great! Now Person 2, get ready! 📸');
+        setBetweenRoundMessage('Great shot! Partner 2, get ready! 📸');
         setTimeout(() => {
           setIsPausedBetweenRounds(false);
           setBetweenRoundMessage(null);
         }, 1800);
       } else {
-        // Person 2 just shot, combine with Person 1
         const frame1 = {
           round: roundToCapture,
           slot: 0,
@@ -162,7 +223,7 @@ export const CaptureScreen: React.FC = () => {
           }, 800);
         } else {
           setIsPausedBetweenRounds(true);
-          setBetweenRoundMessage(POSE_PROMPTS[roundToCapture + 1]);
+          setBetweenRoundMessage(ROUND_TRANSITION_MESSAGES[roundToCapture]);
           setTimeout(() => {
             setIsPausedBetweenRounds(false);
             setBetweenRoundMessage(null);
@@ -176,57 +237,98 @@ export const CaptureScreen: React.FC = () => {
     captureFrame,
     retakeTargetRound,
     currentRound,
+    mode,
+    role,
     subMode,
+    addFrame,
     replaceRoundFrames,
     setRetakeTargetRound,
     setStep,
-    addFrame,
     setCurrentRound,
     currentPersonTurn,
-    turnBufferFrame,
     setCurrentPersonTurn,
+    turnBufferFrame,
   ]);
 
-  // Start the 3-2-1 countdown
-  const startCountdown = useCallback(() => {
+  // Run the animated countdown
+  const runCountdownSequence = useCallback(
+    (duration: number) => {
+      setIsCountingDown(true);
+      let count = duration;
+      setCountdownValue(count);
+      playCountdownBeep(count, isMuted);
+
+      const stepCountdown = () => {
+        count -= 1;
+        if (count > 0) {
+          setCountdownValue(count);
+          playCountdownBeep(count, isMuted);
+          countdownTimerRef.current = window.setTimeout(stepCountdown, 1000);
+        } else {
+          setCountdownValue(null);
+          setIsCountingDown(false);
+          takeSnapshot();
+        }
+      };
+
+      countdownTimerRef.current = window.setTimeout(stepCountdown, 1000);
+    },
+    [isMuted, takeSnapshot]
+  );
+
+  // Bind remote manager callbacks
+  useEffect(() => {
+    remoteManager.setCountdownCallback((duration) => {
+      runCountdownSequence(duration);
+    });
+    remoteManager.setFlashCallback(() => {
+      setIsFlashing(true);
+      setTimeout(() => setIsFlashing(false), 200);
+    });
+    return () => {
+      remoteManager.setCountdownCallback(null);
+      remoteManager.setFlashCallback(null);
+    };
+  }, [runCountdownSequence]);
+
+  // Start countdown trigger
+  const handleStartCountdown = useCallback(() => {
     if (isCountingDown || isPausedBetweenRounds || isLoading || error) return;
 
-    setIsCountingDown(true);
-    let count = timerDuration;
-    setCountdownValue(count);
-    playCountdownBeep(count, isMuted);
+    if (mode === 'together-remote') {
+      remoteManager.send({
+        type: 'START_COUNTDOWN',
+        duration: timerDuration,
+        timestamp: Date.now(),
+      });
+    }
 
-    const stepCountdown = () => {
-      count -= 1;
-      if (count > 0) {
-        setCountdownValue(count);
-        playCountdownBeep(count, isMuted);
-        countdownTimerRef.current = window.setTimeout(stepCountdown, 1000);
-      } else {
-        setCountdownValue(null);
-        setIsCountingDown(false);
-        takeSnapshot();
-      }
-    };
-
-    countdownTimerRef.current = window.setTimeout(stepCountdown, 1000);
-  }, [isCountingDown, isPausedBetweenRounds, isLoading, error, timerDuration, isMuted, takeSnapshot]);
+    runCountdownSequence(timerDuration);
+  }, [
+    isCountingDown,
+    isPausedBetweenRounds,
+    isLoading,
+    error,
+    mode,
+    timerDuration,
+    runCountdownSequence,
+  ]);
 
   // Spacebar hotkey to snap
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !isCountingDown && !isPausedBetweenRounds && !error) {
         e.preventDefault();
-        startCountdown();
+        handleStartCountdown();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isCountingDown, isPausedBetweenRounds, error, startCountdown]);
+  }, [isCountingDown, isPausedBetweenRounds, error, handleStartCountdown]);
 
-  // Clean up timer on unmount only
+  // Clean up timer on unmount
   useEffect(() => {
     return () => {
       if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
@@ -234,7 +336,13 @@ export const CaptureScreen: React.FC = () => {
   }, []);
 
   if (error) {
-    return <PermissionScreen errorType={error} errorMessage={errorMessage} onRetry={startCamera} />;
+    return (
+      <PermissionScreen
+        errorType={error}
+        errorMessage={errorMessage}
+        onRetry={startCamera}
+      />
+    );
   }
 
   const activeRound = retakeTargetRound !== null ? retakeTargetRound : currentRound;
@@ -246,14 +354,14 @@ export const CaptureScreen: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-white pointer-events-none animate-flash" />
       )}
 
-      {/* Screen Reader Live Region for Countdown */}
+      {/* Screen Reader Live Region */}
       <div aria-live="assertive" className="sr-only">
         {countdownValue ? `Countdown ${countdownValue}` : ''}
         {isFlashing ? 'Photo captured!' : ''}
       </div>
 
       {/* Top Controls Bar */}
-      <div className="w-full flex flex-wrap items-center justify-between gap-3 bg-surface/80 backdrop-blur-sm p-3 rounded-card border border-pink/20 shadow-subtle mb-4">
+      <div className="w-full flex flex-wrap items-center justify-between gap-3 bg-surface/85 backdrop-blur-sm p-3.5 rounded-card border border-pink/20 shadow-subtle mb-4">
         {/* Round Progress Tracker */}
         <div className="flex items-center gap-2">
           <span className="font-display font-semibold text-xs sm:text-sm text-ink">
@@ -277,29 +385,42 @@ export const CaptureScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Workflow mode: Same-Frame vs Taking-Turns */}
-        <div className="flex items-center bg-bg rounded-pill p-1 border border-pink/25 text-xs">
-          <button
-            onClick={() => setSubMode('same-frame')}
-            className={`px-3 py-1 rounded-pill font-display transition-colors ${
-              subMode === 'same-frame'
-                ? 'bg-pink-deep text-white shadow-subtle font-semibold'
-                : 'text-muted hover:text-ink'
-            }`}
-          >
-            Same Frame
-          </button>
-          <button
-            onClick={() => setSubMode('taking-turns')}
-            className={`px-3 py-1 rounded-pill font-display transition-colors ${
-              subMode === 'taking-turns'
-                ? 'bg-pink-deep text-white shadow-subtle font-semibold'
-                : 'text-muted hover:text-ink'
-            }`}
-          >
-            Take Turns
-          </button>
-        </div>
+        {/* Remote Status Banner OR Same-Device Mode Switcher */}
+        {mode === 'together-remote' ? (
+          <div className="flex items-center gap-2 bg-pink/10 border border-pink/30 px-3 py-1 rounded-pill">
+            <span className="text-xs font-mono font-bold text-pink-deep">
+              Room {roomCode}
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-pink-deep" />
+            <span className="text-xs font-medium text-ink flex items-center gap-1">
+              <Wifi className="w-3 h-3 text-emerald-600" />
+              {remoteStatus === 'connected' ? `${partnerName} Connected` : 'Connecting...'}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center bg-bg rounded-pill p-1 border border-pink/25 text-xs">
+            <button
+              onClick={() => setSubMode('same-frame')}
+              className={`px-3 py-1 rounded-pill font-display transition-colors ${
+                subMode === 'same-frame'
+                  ? 'bg-pink-deep text-white shadow-subtle font-semibold'
+                  : 'text-muted hover:text-ink'
+              }`}
+            >
+              Same Frame
+            </button>
+            <button
+              onClick={() => setSubMode('taking-turns')}
+              className={`px-3 py-1 rounded-pill font-display transition-colors ${
+                subMode === 'taking-turns'
+                  ? 'bg-pink-deep text-white shadow-subtle font-semibold'
+                  : 'text-muted hover:text-ink'
+              }`}
+            >
+              Take Turns
+            </button>
+          </div>
+        )}
 
         {/* Device, Mirror & Timer controls */}
         <div className="flex items-center gap-1.5">
@@ -335,7 +456,9 @@ export const CaptureScreen: React.FC = () => {
 
           {/* Timer setting (3s / 5s) */}
           <button
-            onClick={() => setTimerDuration(timerDuration === 3 ? 5 : timerDuration === 5 ? 10 : 3)}
+            onClick={() =>
+              setTimerDuration(timerDuration === 3 ? 5 : timerDuration === 5 ? 10 : 3)
+            }
             aria-label={`Timer: ${timerDuration} seconds`}
             title={`Timer: ${timerDuration}s`}
             className="flex items-center gap-1 text-xs font-display font-medium bg-surface text-ink border border-pink/30 rounded-pill px-2.5 py-1 hover:border-pink-deep"
@@ -348,20 +471,50 @@ export const CaptureScreen: React.FC = () => {
 
       {/* Dual Camera Panels View */}
       <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 relative">
-        <CameraPanel
-          personLabel="Person 1"
-          videoRef={videoRef}
-          isMirrored={isMirrored}
-          isActive={subMode === 'same-frame' || currentPersonTurn === 0}
-          isLoading={isLoading}
-        />
-        <CameraPanel
-          personLabel="Person 2"
-          videoRef={videoRef}
-          isMirrored={isMirrored}
-          isActive={subMode === 'same-frame' || currentPersonTurn === 1}
-          isLoading={isLoading}
-        />
+        {mode === 'together-remote' ? (
+          <>
+            {/* Panel 1: Host always on Left (Slot 0) */}
+            <CameraPanel
+              personLabel={role === 'host' ? `${userName} (You)` : partnerName}
+              roleBadge="Slot 1"
+              videoRef={role === 'host' ? videoRef : undefined}
+              stream={role === 'host' ? undefined : remoteStream}
+              isMirrored={role === 'host' ? isMirrored : false}
+              isActive={true}
+              isLoading={role === 'host' ? isLoading : !remoteStream}
+              statusBadge={role === 'host' ? 'Host' : 'Live'}
+            />
+
+            {/* Panel 2: Guest always on Right (Slot 1) */}
+            <CameraPanel
+              personLabel={role === 'guest' ? `${userName} (You)` : partnerName}
+              roleBadge="Slot 2"
+              videoRef={role === 'guest' ? videoRef : undefined}
+              stream={role === 'guest' ? undefined : remoteStream}
+              isMirrored={role === 'guest' ? isMirrored : false}
+              isActive={true}
+              isLoading={role === 'guest' ? isLoading : !remoteStream}
+              statusBadge={role === 'guest' ? 'You' : 'Live'}
+            />
+          </>
+        ) : (
+          <>
+            <CameraPanel
+              personLabel="Person 1"
+              videoRef={videoRef}
+              isMirrored={isMirrored}
+              isActive={subMode === 'same-frame' || currentPersonTurn === 0}
+              isLoading={isLoading}
+            />
+            <CameraPanel
+              personLabel="Person 2"
+              videoRef={videoRef}
+              isMirrored={isMirrored}
+              isActive={subMode === 'same-frame' || currentPersonTurn === 1}
+              isLoading={isLoading}
+            />
+          </>
+        )}
 
         {/* Countdown Floating Display Overlay */}
         {countdownValue !== null && (
@@ -390,12 +543,11 @@ export const CaptureScreen: React.FC = () => {
       {/* Shutter Button & Keyboard Hint */}
       <div className="flex flex-col items-center mt-6 sm:mt-8 gap-3">
         <button
-          onClick={startCountdown}
+          onClick={handleStartCountdown}
           disabled={isCountingDown || isPausedBetweenRounds || isLoading}
           aria-label="Capture photo shutter button"
           className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-pink-deep text-white border-4 border-white shadow-booth hover:shadow-booth-hover hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all flex flex-col items-center justify-center relative group"
         >
-          {/* Shutter inner concentric circle */}
           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-white/60 flex items-center justify-center">
             <Camera className="w-7 h-7 sm:w-8 sm:h-8" />
           </div>

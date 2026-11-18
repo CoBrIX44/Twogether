@@ -12,7 +12,7 @@ export interface ComposeStripOptions {
 }
 
 /**
- * Loads an image from a data URL into an HTMLImageElement
+ * Loads an image from a URL or data URL into an HTMLImageElement
  */
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -109,8 +109,8 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, template.width, template.height);
 
-  // 2. Draw Decorative Film Sprockets along borders
-  if (showSprockets) {
+  // 2. Draw Decorative Film Sprockets along borders (unless using an ornate template that prefers full bleed)
+  if (showSprockets && !template.slotFrameImageUrl) {
     ctx.fillStyle = theme.textColor === '#FFF7F9' ? 'rgba(255,255,255,0.12)' : 'rgba(59,42,53,0.08)';
     const sprocketRadius = 8;
     const sprocketStep = 44;
@@ -141,8 +141,17 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
   ctx.fillText('✧   PHOTO BOOTH SESSION   ✧', template.width / 2, 130);
   ctx.restore();
 
+  // Load slot frame image if template defines one
+  let slotFrameImage: HTMLImageElement | null = null;
+  if (template.slotFrameImageUrl) {
+    try {
+      slotFrameImage = await loadImage(template.slotFrameImageUrl);
+    } catch (e) {
+      console.warn(`Could not load template frame image: ${template.slotFrameImageUrl}`, e);
+    }
+  }
+
   // 4. Render Photo Slots
-  // Map frames for fast lookup: key = `${round}-${slot}`
   const frameMap = new Map<string, PhotoSlot>();
   for (const frame of frames) {
     frameMap.set(`${frame.round}-${frame.slot}`, frame);
@@ -208,16 +217,41 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
 
     ctx.restore();
 
-    // Delicate photo border
-    ctx.save();
-    ctx.strokeStyle = theme.borderColor;
-    ctx.lineWidth = 3;
-    drawRoundedRect(ctx, slotDef.x, slotDef.y, slotDef.width, slotDef.height, slotRadius);
-    ctx.stroke();
-    ctx.restore();
+    // If template has a custom frame overlay image, draw it over the photo slot!
+    if (slotFrameImage) {
+      ctx.save();
+      // Draw with slight bleed/padding to wrap beautifully
+      const framePadding = 8;
+      ctx.drawImage(
+        slotFrameImage,
+        slotDef.x - framePadding,
+        slotDef.y - framePadding,
+        slotDef.width + framePadding * 2,
+        slotDef.height + framePadding * 2
+      );
+      ctx.restore();
+    } else {
+      // Default clean photo border
+      ctx.save();
+      ctx.strokeStyle = theme.borderColor;
+      ctx.lineWidth = 3;
+      drawRoundedRect(ctx, slotDef.x, slotDef.y, slotDef.width, slotDef.height, slotRadius);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
-  // 5. Draw Footer (Caption & Date)
+  // 5. Draw Full Strip Overlay if template defines one
+  if (template.overlayImageUrl) {
+    try {
+      const overlayImg = await loadImage(template.overlayImageUrl);
+      ctx.drawImage(overlayImg, 0, 0, template.width, template.height);
+    } catch (e) {
+      console.warn(`Could not load overlay image: ${template.overlayImageUrl}`, e);
+    }
+  }
+
+  // 6. Draw Footer (Caption & Date)
   const footerCenterY = template.height - template.footerHeight / 2 + 10;
 
   // Thin separator dashed line above footer

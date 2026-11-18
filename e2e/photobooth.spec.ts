@@ -10,10 +10,15 @@ test.describe('Twogether Photo Booth Happy Path', () => {
     // Screenshot of landing page
     await page.screenshot({ path: 'dist/preview-landing.png', fullPage: true });
 
-    // 2. Start photo session
+    // 2. Start photo session & select Same Device
     const startBtn = page.getByRole('button', { name: /step inside the booth/i });
     await expect(startBtn).toBeVisible();
     await startBtn.click({ force: true });
+
+    // Choose Same Device in modal
+    const sameDeviceBtn = page.getByRole('button', { name: /same device/i });
+    await expect(sameDeviceBtn).toBeVisible();
+    await sameDeviceBtn.click({ force: true });
 
     // 3. Verify capture screen with dual panels
     await expect(page.getByText(/round 1 of 3/i)).toBeVisible();
@@ -48,6 +53,15 @@ test.describe('Twogether Photo Booth Happy Path', () => {
     await decorateBtn.click({ force: true });
 
     // 5. Editor screen
+    // Test selecting a photo booth frame / template
+    await expect(page.getByText(/photo booth frames/i)).toBeVisible();
+    const kittyFrame = page.getByRole('button', { name: /kitty stars/i });
+    if (await kittyFrame.isVisible()) {
+      await kittyFrame.click({ force: true });
+    }
+
+    // Switch to Stickers tab
+    await page.getByRole('button', { name: /stickers/i }).click({ force: true });
     await expect(page.getByText(/stickers & original mascots/i)).toBeVisible();
 
     // Add Boba Bunny sticker
@@ -70,5 +84,13 @@ test.describe('Twogether Photo Booth Happy Path', () => {
     await expect(page.getByText(/download your memory/i)).toBeVisible();
     await page.waitForTimeout(1500);
     await page.screenshot({ path: 'dist/preview-export.png', fullPage: true });
+  });
+
+  test('opens remote booth invite flow and auto-joins via query parameter', async ({ page }) => {
+    // Test URL query param ?room=TW-8899 auto-opens join modal
+    await page.goto('/?room=TW-8899');
+    await expect(page.getByText(/join a remote photo booth/i)).toBeVisible();
+    const input = page.getByPlaceholder(/TW-8492/i);
+    await expect(input).toHaveValue('TW-8899');
   });
 });

@@ -1,30 +1,41 @@
-import React from 'react';
-import { Camera, Sparkles, Heart, Users, ShieldCheck, ArrowRight } from 'lucide-react';
-import { useSessionStore } from '@/stores/sessionStore';
+import React, { useState, useEffect } from 'react';
+import { Camera, Sparkles, Users, ShieldCheck, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { STICKER_CATALOGUE } from '@/lib/stickers/catalogue';
+import { ModeSelectModal } from '@/features/session/ModeSelectModal';
 
 export const LandingPage: React.FC = () => {
-  const { setStep, setMode } = useSessionStore();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [initialRoomCode, setInitialRoomCode] = useState<string | undefined>(undefined);
+
+  // Check URL parameters for room code to auto-join
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room') || params.get('join');
+    if (room) {
+      setInitialRoomCode(room);
+      setIsModalOpen(true);
+    }
+  }, []);
 
   const handleStartBooth = () => {
-    setMode('same-device');
-    setStep('capture');
+    setIsModalOpen(true);
   };
 
   const mascots = STICKER_CATALOGUE.filter((s) => s.category === 'mascots');
 
   return (
     <div className="flex flex-col items-center gap-12 sm:gap-16 pb-8">
+      {/* Mode Selection & Remote Booth Dialog */}
+      <ModeSelectModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        initialRoomCode={initialRoomCode}
+      />
+
       {/* Hero Section */}
       <section className="text-center max-w-2xl mx-auto flex flex-col items-center pt-2 sm:pt-6">
-        {/* Cute Pill Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-pill bg-pink/15 text-pink-deep border border-pink/30 text-xs sm:text-sm font-semibold mb-4 shadow-subtle animate-float">
-          <Heart className="w-4 h-4 fill-pink-deep text-pink-deep" />
-          <span>The Virtual Photo Booth for Pairs</span>
-        </div>
-
         {/* Main Title & Tagline */}
         <h1 className="text-4xl sm:text-6xl font-display font-bold text-ink leading-tight tracking-tight mb-4">
           Capturing moments,{' '}
@@ -34,7 +45,7 @@ export const LandingPage: React.FC = () => {
         </h1>
 
         <p className="text-base sm:text-lg text-muted font-body max-w-lg mb-8 leading-relaxed">
-          Step into our retro-cute photo booth! Take 3 candid shots side-by-side, decorate with adorable original mascots and pastel filters, and export your classic strip.
+          Step into our retro-cute photo booth! Take 3 candid shots side-by-side or from two devices anywhere in the world, decorate with aesthetic frames, cute stickers, and pastel filters, and download your classic strip.
         </p>
 
         {/* Primary CTA */}
@@ -44,7 +55,7 @@ export const LandingPage: React.FC = () => {
             isPulse
             rightIcon={<ArrowRight className="w-5 h-5" />}
             onClick={handleStartBooth}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto text-base"
           >
             Step Inside the Booth ♡
           </Button>
@@ -122,10 +133,22 @@ export const LandingPage: React.FC = () => {
                 {mascots.slice(0, 4).map((m) => (
                   <div
                     key={m.id}
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-card bg-surface p-2 shadow-subtle border border-pink/30 hover:scale-110 hover:-translate-y-1 transition-transform cursor-pointer"
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-card bg-surface p-2 shadow-subtle border border-pink/30 hover:scale-110 hover:-translate-y-1 transition-transform cursor-pointer flex items-center justify-center overflow-hidden"
                     title={m.name}
-                    dangerouslySetInnerHTML={{ __html: m.svg }}
-                  />
+                  >
+                    {m.imageUrl ? (
+                      <img
+                        src={m.imageUrl}
+                        alt={m.name}
+                        className="w-full h-full object-contain pointer-events-none select-none"
+                      />
+                    ) : (
+                      <div
+                        className="w-full h-full pointer-events-none flex items-center justify-center"
+                        dangerouslySetInnerHTML={{ __html: m.svg || '' }}
+                      />
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

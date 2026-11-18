@@ -40,8 +40,15 @@ export async function flattenStripToCanvas(options: FlattenExportOptions): Promi
     if (!asset) continue;
 
     try {
-      const dataUrl = svgToDataUrl(asset.svg);
-      const img = await loadImage(dataUrl);
+      let img: HTMLImageElement;
+      if (asset.imageUrl) {
+        img = await loadImage(asset.imageUrl);
+      } else if (asset.svg) {
+        const dataUrl = svgToDataUrl(asset.svg);
+        img = await loadImage(dataUrl);
+      } else {
+        continue;
+      }
 
       ctx.save();
       // Translate to sticker center

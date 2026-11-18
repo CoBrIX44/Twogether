@@ -202,11 +202,20 @@ export const StickerStage: React.FC<StickerStageProps> = ({
               }}
               onPointerDown={(e) => handleStickerPointerDown(e, sticker)}
             >
-              {/* Sticker SVG Graphic */}
-              <div
-                className="w-full h-full drop-shadow-md pointer-events-none"
-                dangerouslySetInnerHTML={{ __html: asset.svg }}
-              />
+              {/* Sticker Graphic */}
+              {asset.imageUrl ? (
+                <img
+                  src={asset.imageUrl}
+                  alt={asset.name}
+                  className="w-full h-full object-contain drop-shadow-md pointer-events-none select-none"
+                  draggable={false}
+                />
+              ) : (
+                <div
+                  className="w-full h-full drop-shadow-md pointer-events-none"
+                  dangerouslySetInnerHTML={{ __html: asset.svg || '' }}
+                />
+              )}
 
               {/* Selection Transform Handles (when selected) */}
               {isSelected && (

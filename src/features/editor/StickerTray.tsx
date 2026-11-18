@@ -2,7 +2,15 @@ import React, { useState } from 'react';
 import { STICKER_CATALOGUE, StickerItem } from '@/lib/stickers/catalogue';
 import { useEditorStore } from '@/stores/editorStore';
 
-type CategoryFilter = 'all' | 'mascots' | 'hearts-stars' | 'accessories' | 'washi-tape' | 'text-badges';
+type CategoryFilter =
+  | 'all'
+  | 'mascots'
+  | 'retro'
+  | 'hearts-stars'
+  | 'nature'
+  | 'pins'
+  | 'accessories'
+  | 'washi-tape';
 
 export const StickerTray: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
@@ -11,10 +19,12 @@ export const StickerTray: React.FC = () => {
   const categories: { id: CategoryFilter; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'mascots', label: 'Mascots' },
+    { id: 'retro', label: 'Retro' },
     { id: 'hearts-stars', label: 'Hearts & Stars' },
-    { id: 'accessories', label: 'Accessories' },
+    { id: 'nature', label: 'Nature' },
+    { id: 'pins', label: 'Pins & Badges' },
     { id: 'washi-tape', label: 'Washi Tape' },
-    { id: 'text-badges', label: 'Badges' },
+    { id: 'accessories', label: 'Accessories' },
   ];
 
   const filteredStickers =
@@ -55,12 +65,21 @@ export const StickerTray: React.FC = () => {
             key={sticker.id}
             onClick={() => handleAdd(sticker)}
             title={`Add ${sticker.name}`}
-            className="aspect-square bg-bg hover:bg-pink/15 rounded-card p-2 flex items-center justify-center border border-pink/20 hover:border-pink-deep hover:scale-105 active:scale-95 transition-all group"
+            className="aspect-square bg-bg hover:bg-pink/15 rounded-card p-2 flex items-center justify-center border border-pink/20 hover:border-pink-deep hover:scale-105 active:scale-95 transition-all group overflow-hidden"
           >
-            <div
-              className="w-full h-full drop-shadow-xs group-hover:scale-110 transition-transform pointer-events-none"
-              dangerouslySetInnerHTML={{ __html: sticker.svg }}
-            />
+            {sticker.imageUrl ? (
+              <img
+                src={sticker.imageUrl}
+                alt={sticker.name}
+                className="w-full h-full object-contain drop-shadow-xs group-hover:scale-110 transition-transform pointer-events-none select-none"
+                loading="lazy"
+              />
+            ) : (
+              <div
+                className="w-full h-full drop-shadow-xs group-hover:scale-110 transition-transform pointer-events-none flex items-center justify-center"
+                dangerouslySetInnerHTML={{ __html: sticker.svg || '' }}
+              />
+            )}
           </button>
         ))}
       </div>
