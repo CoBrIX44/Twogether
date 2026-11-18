@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #FFF7F9;          /* cream blush */
+  --surface: #FFFFFF;
+  --ink: #3B2A35;         /* soft plum-black text */
+  --muted: #8A7683;
+  --pink: #FF9EC4;
+  --pink-deep: #F0629A;   /* primary action */
+  --lavender: #C9B6F2;
+  --lavender-deep: #9A7BE0;
+  --mint: #BFEBD8;
+  --butter: #FFE9A8;
+  --danger: #E5484D;
+  --focus: #7B5CF0;
+}
+
+.dark {
+  --bg: #1F1620;
+  --surface: #2A1F2D;
+  --ink: #FBEFF5;
+  --muted: #A3919D;
+}
+
+@layer base {
+  * {
+    border-color: rgba(240, 98, 154, 0.15);
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: 'Quicksand', 'Nunito', system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Fredoka', system-ui, sans-serif;
+  }
+}
+
+/* Photobooth touches */
+.film-sprocket {
+  background-image: radial-gradient(circle, #3B2A35 30%, transparent 35%);
+  background-size: 16px 16px;
+}
+
+.booth-border-dashed {
+  border: 2px dashed rgba(240, 98, 154, 0.4);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--pink);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--pink-deep);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
