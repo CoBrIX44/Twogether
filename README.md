@@ -9,6 +9,11 @@ Twogether brings the authentic, joyful nostalgia of physical Japanese & Korean-s
 
 ## 🎬 Demo
 
+
+
+https://github.com/user-attachments/assets/b1d1a499-ea2a-4690-badf-586c53286071
+
+
 <video src="brag-output/brag.mp4" poster="brag-output/brag.jpg" controls playsinline width="100%">
   <a href="brag-output/brag.mp4">Watch the Twogether launch video</a>
 </video>
