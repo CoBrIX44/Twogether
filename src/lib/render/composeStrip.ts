@@ -79,6 +79,43 @@ function drawRoundedRect(
 }
 
 /**
+ * Helper to draw 9-slice frame border around the canvas
+ */
+function draw9Slice(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  targetW: number,
+  targetH: number,
+  bTop: number,
+  bRight: number,
+  bBottom: number,
+  bLeft: number,
+  drawWTop: number,
+  drawWRight: number,
+  drawWBottom: number,
+  drawWLeft: number
+) {
+  const sw = img.width;
+  const sh = img.height;
+  const sCenterW = Math.max(1, sw - bLeft - bRight);
+  const sCenterH = Math.max(1, sh - bTop - bBottom);
+  const dCenterW = Math.max(1, targetW - drawWLeft - drawWRight);
+  const dCenterH = Math.max(1, targetH - drawWTop - drawWBottom);
+
+  // 4 corners
+  ctx.drawImage(img, 0, 0, bLeft, bTop, 0, 0, drawWLeft, drawWTop);
+  ctx.drawImage(img, sw - bRight, 0, bRight, bTop, targetW - drawWRight, 0, drawWRight, drawWTop);
+  ctx.drawImage(img, 0, sh - bBottom, bLeft, bBottom, 0, targetH - drawWBottom, drawWLeft, drawWBottom);
+  ctx.drawImage(img, sw - bRight, sh - bBottom, bRight, bBottom, targetW - drawWRight, targetH - drawWBottom, drawWRight, drawWBottom);
+
+  // 4 edges
+  ctx.drawImage(img, bLeft, 0, sCenterW, bTop, drawWLeft, 0, dCenterW, drawWTop);
+  ctx.drawImage(img, bLeft, sh - bBottom, sCenterW, bBottom, drawWLeft, targetH - drawWBottom, dCenterW, drawWBottom);
+  ctx.drawImage(img, 0, bTop, bLeft, sCenterH, 0, drawWTop, drawWLeft, dCenterH);
+  ctx.drawImage(img, sw - bRight, bTop, bRight, sCenterH, targetW - drawWRight, drawWTop, drawWRight, dCenterH);
+}
+
+/**
  * Composes a full high-resolution 3x2 photo strip on an offscreen canvas.
  */
 export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCanvasElement> {
@@ -105,23 +142,53 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
     throw new Error('Failed to get 2D canvas context for strip composition');
   }
 
-  // 1. Draw Strip Background
+  // 1. Draw Strip Base Background
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, template.width, template.height);
 
-  // 2. Draw Decorative Film Sprockets along borders (unless using an ornate template that prefers full bleed)
-  if (showSprockets && !template.slotFrameImageUrl) {
-    ctx.fillStyle = theme.textColor === '#FFF7F9' ? 'rgba(255,255,255,0.12)' : 'rgba(59,42,53,0.08)';
+  // 2. If a custom strip frame is selected, draw the frame around the STRIP
+  if (template.stripFrameImageUrl) {
+    try {
+      const frameImg = await loadImage(template.stripFrameImageUrl);
+      const slices = template.frameSlices || {
+        bTop: Math.floor(frameImg.height * 0.15),
+        bBottom: Math.floor(frameImg.height * 0.22),
+        bLeft: Math.floor(frameImg.width * 0.15),
+        bRight: Math.floor(frameImg.width * 0.15),
+        dTop: 160,
+        dBottom: 240,
+        dLeft: 80,
+        dRight: 80,
+      };
+
+      draw9Slice(
+        ctx,
+        frameImg,
+        template.width,
+        template.height,
+        slices.bTop,
+        slices.bRight,
+        slices.bBottom,
+        slices.bLeft,
+        slices.dTop,
+        slices.dRight,
+        slices.dBottom,
+        slices.dLeft
+      );
+    } catch (err) {
+      console.warn(`Could not render strip frame image: ${template.stripFrameImageUrl}`, err);
+    }
+  } else if (showSprockets) {
+    // Default White Strip film sprockets
+    ctx.fillStyle = theme.textColor === '#FFF7F9' ? 'rgba(255,255,255,0.12)' : 'rgba(59,42,53,0.06)';
     const sprocketRadius = 8;
     const sprocketStep = 44;
     const sprocketYStart = 100;
     const sprocketYEnd = template.height - 100;
 
     for (let y = sprocketYStart; y <= sprocketYEnd; y += sprocketStep) {
-      // Left sprocket
       drawRoundedRect(ctx, 16, y, sprocketRadius * 2, sprocketRadius * 2, 4);
       ctx.fill();
-      // Right sprocket
       drawRoundedRect(ctx, template.width - 16 - sprocketRadius * 2, y, sprocketRadius * 2, sprocketRadius * 2, 4);
       ctx.fill();
     }
@@ -141,17 +208,7 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
   ctx.fillText('✧   PHOTO BOOTH SESSION   ✧', template.width / 2, 130);
   ctx.restore();
 
-  // Load slot frame image if template defines one
-  let slotFrameImage: HTMLImageElement | null = null;
-  if (template.slotFrameImageUrl) {
-    try {
-      slotFrameImage = await loadImage(template.slotFrameImageUrl);
-    } catch (e) {
-      console.warn(`Could not load template frame image: ${template.slotFrameImageUrl}`, e);
-    }
-  }
-
-  // 4. Render Photo Slots
+  // 4. Render Photo Slots cleanly onto the strip
   const frameMap = new Map<string, PhotoSlot>();
   for (const frame of frames) {
     frameMap.set(`${frame.round}-${frame.slot}`, frame);
@@ -164,9 +221,9 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
     ctx.save();
 
     // Slot border / background card
-    const slotRadius = 12;
+    const slotRadius = 10;
     drawRoundedRect(ctx, slotDef.x, slotDef.y, slotDef.width, slotDef.height, slotRadius);
-    ctx.fillStyle = theme.textColor === '#FFF7F9' ? '#2A1F2D' : '#F3E8EE';
+    ctx.fillStyle = '#F8FAFC';
     ctx.fill();
 
     // Clip to rounded slot
@@ -217,28 +274,13 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
 
     ctx.restore();
 
-    // If template has a custom frame overlay image, draw it over the photo slot!
-    if (slotFrameImage) {
-      ctx.save();
-      // Draw with slight bleed/padding to wrap beautifully
-      const framePadding = 8;
-      ctx.drawImage(
-        slotFrameImage,
-        slotDef.x - framePadding,
-        slotDef.y - framePadding,
-        slotDef.width + framePadding * 2,
-        slotDef.height + framePadding * 2
-      );
-      ctx.restore();
-    } else {
-      // Default clean photo border
-      ctx.save();
-      ctx.strokeStyle = theme.borderColor;
-      ctx.lineWidth = 3;
-      drawRoundedRect(ctx, slotDef.x, slotDef.y, slotDef.width, slotDef.height, slotRadius);
-      ctx.stroke();
-      ctx.restore();
-    }
+    // Crisp photo slot border
+    ctx.save();
+    ctx.strokeStyle = theme.borderColor;
+    ctx.lineWidth = 2.5;
+    drawRoundedRect(ctx, slotDef.x, slotDef.y, slotDef.width, slotDef.height, slotRadius);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // 5. Draw Full Strip Overlay if template defines one

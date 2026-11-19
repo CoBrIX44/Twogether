@@ -92,6 +92,17 @@ export interface StripTemplateConfig {
   photoHeight: number;
   headerHeight: number;
   footerHeight: number;
+  stripFrameImageUrl?: string;
+  frameSlices?: {
+    bTop: number;
+    bBottom: number;
+    bLeft: number;
+    bRight: number;
+    dTop: number;
+    dBottom: number;
+    dLeft: number;
+    dRight: number;
+  };
   overlayImageUrl?: string;
   previewImageUrl?: string;
   slotFrameImageUrl?: string;

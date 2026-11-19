@@ -9,7 +9,7 @@ describe('useEditorStore', () => {
   it('initializes with default filter and theme', () => {
     const state = useEditorStore.getState();
     expect(state.selectedFilter).toBe('none');
-    expect(state.selectedThemeId).toBe('blush');
+    expect(state.selectedThemeId).toBe('white');
     expect(state.stickers).toHaveLength(0);
     expect(state.caption).toBe('twogether ♡');
   });

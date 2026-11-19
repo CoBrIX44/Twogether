@@ -79,7 +79,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
   return {
     selectedFilter: 'none',
-    selectedThemeId: 'blush',
+    selectedThemeId: 'white',
     selectedTemplateId: 'classic-3x2',
     stickers: [],
     selectedStickerId: null,
@@ -89,7 +89,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       {
         stickers: [],
         selectedFilter: 'none',
-        selectedThemeId: 'blush',
+        selectedThemeId: 'white',
         selectedTemplateId: 'classic-3x2',
         caption: 'twogether ♡',
         dateText: DEFAULT_DATE,
@@ -241,7 +241,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     resetEditor: () =>
       set({
         selectedFilter: 'none',
-        selectedThemeId: 'blush',
+        selectedThemeId: 'white',
         selectedTemplateId: 'classic-3x2',
         stickers: [],
         selectedStickerId: null,
@@ -251,7 +251,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
           {
             stickers: [],
             selectedFilter: 'none',
-            selectedThemeId: 'blush',
+            selectedThemeId: 'white',
             selectedTemplateId: 'classic-3x2',
             caption: 'twogether ♡',
             dateText: DEFAULT_DATE,

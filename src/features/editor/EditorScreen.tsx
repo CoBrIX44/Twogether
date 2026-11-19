@@ -241,9 +241,9 @@ export const EditorScreen: React.FC = () => {
             <div className="bg-surface rounded-card p-4 border border-pink/20 shadow-subtle">
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-xs font-display font-semibold text-ink">
-                  Photo Booth Frames & Themes
+                  Photo Booth Frames & Templates
                 </span>
-                <span className="text-[11px] text-muted">Tap to switch frame</span>
+                <span className="text-[11px] text-muted">Tap to apply frame to strip</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {TEMPLATE_REGISTRY.map((t) => {
@@ -251,24 +251,29 @@ export const EditorScreen: React.FC = () => {
                   return (
                     <button
                       key={t.id}
-                      onClick={() => setTemplate(t.id)}
+                      onClick={() => {
+                        setTemplate(t.id);
+                        if (t.id === 'classic-3x2') {
+                          setTheme('white');
+                        }
+                      }}
                       className={`flex flex-col items-center p-2.5 rounded-card border-2 transition-all text-left ${
                         isSelected
                           ? 'border-pink-deep bg-pink/15 shadow-subtle scale-102 ring-2 ring-pink-deep/30'
                           : 'border-pink/20 hover:border-pink-deep/50 bg-bg'
                       }`}
                     >
-                      <div className="w-full aspect-[3/4] rounded-md mb-2 overflow-hidden bg-white/80 border border-pink/20 flex items-center justify-center relative p-1 shadow-xs">
-                        {t.overlayImageUrl ? (
+                      <div className="w-full aspect-[3/4] rounded-md mb-2 overflow-hidden bg-white border border-pink/20 flex items-center justify-center relative p-1 shadow-xs">
+                        {t.previewImageUrl || t.stripFrameImageUrl ? (
                           <img
-                            src={t.overlayImageUrl}
+                            src={t.previewImageUrl || t.stripFrameImageUrl}
                             alt={t.name}
                             className="w-full h-full object-contain pointer-events-none"
                           />
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-pink/5 rounded border border-dashed border-pink/30">
-                            <span className="text-xs font-display font-semibold text-pink-deep">Classic</span>
-                            <span className="text-[10px] text-muted">3×2 Grid</span>
+                          <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-white rounded border border-dashed border-gray-300">
+                            <span className="text-xs font-display font-semibold text-ink">Default</span>
+                            <span className="text-[10px] text-muted">White Strip</span>
                           </div>
                         )}
                       </div>
