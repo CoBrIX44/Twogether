@@ -165,7 +165,7 @@ export const StickerStage: React.FC<StickerStageProps> = ({
           <img
             src={previewUrl}
             alt="Custom photo strip preview"
-            className="w-full h-full object-contain pointer-events-none"
+            className="w-full h-full block object-cover pointer-events-none select-none"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-sm text-muted">

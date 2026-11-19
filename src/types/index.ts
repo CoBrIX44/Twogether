@@ -103,6 +103,13 @@ export interface StripTemplateConfig {
     dLeft: number;
     dRight: number;
   };
+  sourceCrop?: {
+    sx: number;
+    sy: number;
+    sw: number;
+    sh: number;
+  };
+  frameBackgroundColor?: string;
   overlayImageUrl?: string;
   previewImageUrl?: string;
   slotFrameImageUrl?: string;
@@ -124,7 +131,8 @@ export interface ExportOptions {
 
 // Remote signaling messages over WebRTC data channel
 export type RemoteMessage =
-  | { type: 'PARTNER_JOINED'; name: string }
+  | { type: 'PARTNER_JOINED'; name: string; peerId?: string }
+  | { type: 'STREAM_READY'; peerId?: string }
   | { type: 'SYNC_READY'; isReady: boolean }
   | { type: 'START_COUNTDOWN'; duration: number; timestamp: number }
   | { type: 'CAPTURE_FRAME'; round: number; slot: number; dataUrl: string }

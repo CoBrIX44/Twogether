@@ -475,26 +475,26 @@ export const CaptureScreen: React.FC = () => {
           <>
             {/* Panel 1: Host always on Left (Slot 0) */}
             <CameraPanel
-              personLabel={role === 'host' ? `${userName} (You)` : partnerName}
+              personLabel={role === 'host' ? `${userName} (You)` : (partnerName || 'Partner')}
               roleBadge="Slot 1"
               videoRef={role === 'host' ? videoRef : undefined}
-              stream={role === 'host' ? undefined : remoteStream}
+              stream={role === 'host' ? stream : remoteStream}
               isMirrored={role === 'host' ? isMirrored : false}
               isActive={true}
-              isLoading={role === 'host' ? isLoading : !remoteStream}
-              statusBadge={role === 'host' ? 'Host' : 'Live'}
+              isLoading={role === 'host' ? (isLoading || !stream) : (remoteStatus !== 'connected' || !remoteStream)}
+              statusBadge={role === 'host' ? 'Host' : (remoteStream ? 'Live' : 'Connecting...')}
             />
 
             {/* Panel 2: Guest always on Right (Slot 1) */}
             <CameraPanel
-              personLabel={role === 'guest' ? `${userName} (You)` : partnerName}
+              personLabel={role === 'guest' ? `${userName} (You)` : (partnerName || 'Partner')}
               roleBadge="Slot 2"
               videoRef={role === 'guest' ? videoRef : undefined}
-              stream={role === 'guest' ? undefined : remoteStream}
+              stream={role === 'guest' ? stream : remoteStream}
               isMirrored={role === 'guest' ? isMirrored : false}
               isActive={true}
-              isLoading={role === 'guest' ? isLoading : !remoteStream}
-              statusBadge={role === 'guest' ? 'You' : 'Live'}
+              isLoading={role === 'guest' ? (isLoading || !stream) : (remoteStatus !== 'connected' || !remoteStream)}
+              statusBadge={role === 'guest' ? 'You' : (remoteStream ? 'Live' : 'Connecting...')}
             />
           </>
         ) : (
@@ -502,16 +502,17 @@ export const CaptureScreen: React.FC = () => {
             <CameraPanel
               personLabel="Person 1"
               videoRef={videoRef}
+              stream={stream}
               isMirrored={isMirrored}
               isActive={subMode === 'same-frame' || currentPersonTurn === 0}
-              isLoading={isLoading}
+              isLoading={isLoading || !stream}
             />
             <CameraPanel
               personLabel="Person 2"
-              videoRef={videoRef}
+              stream={stream}
               isMirrored={isMirrored}
               isActive={subMode === 'same-frame' || currentPersonTurn === 1}
-              isLoading={isLoading}
+              isLoading={isLoading || !stream}
             />
           </>
         )}

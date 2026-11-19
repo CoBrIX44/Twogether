@@ -93,26 +93,29 @@ function draw9Slice(
   drawWTop: number,
   drawWRight: number,
   drawWBottom: number,
-  drawWLeft: number
+  drawWLeft: number,
+  sourceCrop?: { sx: number; sy: number; sw: number; sh: number }
 ) {
-  const sw = img.width;
-  const sh = img.height;
+  const sx0 = sourceCrop ? sourceCrop.sx : 0;
+  const sy0 = sourceCrop ? sourceCrop.sy : 0;
+  const sw = sourceCrop ? sourceCrop.sw : img.width;
+  const sh = sourceCrop ? sourceCrop.sh : img.height;
   const sCenterW = Math.max(1, sw - bLeft - bRight);
   const sCenterH = Math.max(1, sh - bTop - bBottom);
   const dCenterW = Math.max(1, targetW - drawWLeft - drawWRight);
   const dCenterH = Math.max(1, targetH - drawWTop - drawWBottom);
 
-  // 4 corners
-  ctx.drawImage(img, 0, 0, bLeft, bTop, 0, 0, drawWLeft, drawWTop);
-  ctx.drawImage(img, sw - bRight, 0, bRight, bTop, targetW - drawWRight, 0, drawWRight, drawWTop);
-  ctx.drawImage(img, 0, sh - bBottom, bLeft, bBottom, 0, targetH - drawWBottom, drawWLeft, drawWBottom);
-  ctx.drawImage(img, sw - bRight, sh - bBottom, bRight, bBottom, targetW - drawWRight, targetH - drawWBottom, drawWRight, drawWBottom);
+  // 4 corners - drawn full bleed to canvas edges
+  ctx.drawImage(img, sx0, sy0, bLeft, bTop, 0, 0, drawWLeft, drawWTop);
+  ctx.drawImage(img, sx0 + sw - bRight, sy0, bRight, bTop, targetW - drawWRight, 0, drawWRight, drawWTop);
+  ctx.drawImage(img, sx0, sy0 + sh - bBottom, bLeft, bBottom, 0, targetH - drawWBottom, drawWLeft, drawWBottom);
+  ctx.drawImage(img, sx0 + sw - bRight, sy0 + sh - bBottom, bRight, bBottom, targetW - drawWRight, targetH - drawWBottom, drawWRight, drawWBottom);
 
   // 4 edges
-  ctx.drawImage(img, bLeft, 0, sCenterW, bTop, drawWLeft, 0, dCenterW, drawWTop);
-  ctx.drawImage(img, bLeft, sh - bBottom, sCenterW, bBottom, drawWLeft, targetH - drawWBottom, dCenterW, drawWBottom);
-  ctx.drawImage(img, 0, bTop, bLeft, sCenterH, 0, drawWTop, drawWLeft, dCenterH);
-  ctx.drawImage(img, sw - bRight, bTop, bRight, sCenterH, targetW - drawWRight, drawWTop, drawWRight, dCenterH);
+  ctx.drawImage(img, sx0 + bLeft, sy0, sCenterW, bTop, drawWLeft, 0, dCenterW, drawWTop);
+  ctx.drawImage(img, sx0 + bLeft, sy0 + sh - bBottom, sCenterW, bBottom, drawWLeft, targetH - drawWBottom, dCenterW, drawWBottom);
+  ctx.drawImage(img, sx0, sy0 + bTop, bLeft, sCenterH, 0, drawWTop, drawWLeft, dCenterH);
+  ctx.drawImage(img, sx0 + sw - bRight, sy0 + bTop, bRight, sCenterH, targetW - drawWRight, drawWTop, drawWRight, dCenterH);
 }
 
 /**
@@ -142,11 +145,13 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
     throw new Error('Failed to get 2D canvas context for strip composition');
   }
 
+  const isDarkTemplate = template.id === 'kitty-stars';
+
   // 1. Draw Strip Base Background
-  ctx.fillStyle = theme.background;
+  ctx.fillStyle = template.frameBackgroundColor || theme.background;
   ctx.fillRect(0, 0, template.width, template.height);
 
-  // 2. If a custom strip frame is selected, draw the frame around the STRIP
+  // 2. If a custom strip frame is selected, draw the frame full-bleed around the STRIP
   if (template.stripFrameImageUrl) {
     try {
       const frameImg = await loadImage(template.stripFrameImageUrl);
@@ -156,9 +161,9 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
         bLeft: Math.floor(frameImg.width * 0.15),
         bRight: Math.floor(frameImg.width * 0.15),
         dTop: 160,
-        dBottom: 240,
-        dLeft: 80,
-        dRight: 80,
+        dBottom: 250,
+        dLeft: 60,
+        dRight: 60,
       };
 
       draw9Slice(
@@ -173,7 +178,8 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
         slices.dTop,
         slices.dRight,
         slices.dBottom,
-        slices.dLeft
+        slices.dLeft,
+        template.sourceCrop
       );
     } catch (err) {
       console.warn(`Could not render strip frame image: ${template.stripFrameImageUrl}`, err);
@@ -195,15 +201,18 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
   }
 
   // 3. Draw Header
+  const headerTextColor = isDarkTemplate ? '#FFFFFF' : theme.textColor;
+  const headerAccentColor = isDarkTemplate ? '#FF9EC4' : theme.accentColor;
+
   ctx.save();
-  ctx.fillStyle = theme.textColor;
+  ctx.fillStyle = headerTextColor;
   ctx.font = '700 44px "Fredoka", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('TWOGETHER  ♡', template.width / 2, 85);
 
   // Subtitle / decorative stars
-  ctx.fillStyle = theme.accentColor;
+  ctx.fillStyle = headerAccentColor;
   ctx.font = '600 20px "Quicksand", system-ui, sans-serif';
   ctx.fillText('✧   PHOTO BOOTH SESSION   ✧', template.width / 2, 130);
   ctx.restore();
@@ -276,7 +285,11 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
 
     // Crisp photo slot border
     ctx.save();
-    ctx.strokeStyle = theme.borderColor;
+    ctx.strokeStyle = isDarkTemplate
+      ? 'rgba(255, 255, 255, 0.4)'
+      : template.stripFrameImageUrl
+      ? 'rgba(240, 98, 154, 0.4)'
+      : theme.borderColor;
     ctx.lineWidth = 2.5;
     drawRoundedRect(ctx, slotDef.x, slotDef.y, slotDef.width, slotDef.height, slotRadius);
     ctx.stroke();
@@ -295,10 +308,12 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
 
   // 6. Draw Footer (Caption & Date)
   const footerCenterY = template.height - template.footerHeight / 2 + 10;
+  const footerTextColor = isDarkTemplate ? '#FFFFFF' : theme.textColor;
+  const footerAccentColor = isDarkTemplate ? '#FF9EC4' : theme.accentColor;
 
   // Thin separator dashed line above footer
   ctx.save();
-  ctx.strokeStyle = theme.borderColor;
+  ctx.strokeStyle = isDarkTemplate ? 'rgba(255, 255, 255, 0.25)' : theme.borderColor;
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 8]);
   ctx.beginPath();
@@ -309,14 +324,14 @@ export async function composeStrip(options: ComposeStripOptions): Promise<HTMLCa
 
   // Caption text
   ctx.save();
-  ctx.fillStyle = theme.textColor;
+  ctx.fillStyle = footerTextColor;
   ctx.font = '600 36px "Fredoka", cursive, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(caption, template.width / 2, footerCenterY - 26);
 
   // Date and small heart stamp
-  ctx.fillStyle = theme.accentColor;
+  ctx.fillStyle = footerAccentColor;
   ctx.font = '700 20px "Quicksand", sans-serif';
   ctx.fillText(`★  ${dateText}  ★`, template.width / 2, footerCenterY + 28);
   ctx.restore();

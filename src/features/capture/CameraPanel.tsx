@@ -30,7 +30,9 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
   useEffect(() => {
     const videoEl = videoRef ? videoRef.current : internalVideoRef.current;
     if (videoEl && stream) {
-      videoEl.srcObject = stream;
+      if (videoEl.srcObject !== stream) {
+        videoEl.srcObject = stream;
+      }
       videoEl.play().catch((err) => {
         console.warn('Auto-play stream caught:', err);
       });
@@ -95,6 +97,10 @@ export const CameraPanel: React.FC<CameraPanelProps> = ({
             autoPlay
             playsInline
             muted
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              v.play().catch((err) => console.warn('play caught:', err));
+            }}
             className={`w-full h-full object-cover transition-transform ${
               isMirrored ? 'scale-x-[-1]' : 'scale-x-100'
             }`}

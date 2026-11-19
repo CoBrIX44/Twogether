@@ -164,12 +164,12 @@ export const ExportScreen: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start w-full">
         {/* Left Column: Final Finished Strip Preview */}
         <div className="md:col-span-6 flex flex-col items-center">
-          <div className="w-full max-w-[340px] bg-surface rounded-card p-3 shadow-booth-hover border-2 border-pink/30 relative">
+          <div className="w-full max-w-[340px] rounded-card shadow-booth-hover border-2 border-pink/30 relative overflow-hidden bg-surface">
             {previewDataUrl ? (
               <img
                 src={previewDataUrl}
                 alt="Finished Twogether Photo Strip"
-                className="w-full h-auto rounded-md shadow-sm"
+                className="w-full h-auto block select-none"
               />
             ) : (
               <div className="w-full aspect-[12/26] flex items-center justify-center text-xs text-muted">

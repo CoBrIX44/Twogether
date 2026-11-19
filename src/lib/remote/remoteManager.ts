@@ -7,6 +7,8 @@ class RemoteManager {
   private peer: Peer | null = null;
   private dataConnection: DataConnection | null = null;
   private mediaConnection: MediaConnection | null = null;
+  private pendingIncomingCall: MediaConnection | null = null;
+  private remotePeerId: string | null = null;
   private localStream: MediaStream | null = null;
   private countdownCallback: ((duration: number) => void) | null = null;
   private flashCallback: (() => void) | null = null;
@@ -23,10 +25,42 @@ class RemoteManager {
 
   public setLocalStream(stream: MediaStream | null) {
     this.localStream = stream;
-    // If we have an active call without stream or needing replaceTrack:
-    if (this.peer && this.mediaConnection && stream) {
-      // Stream is available
+    if (!stream) return;
+
+    // 1. If we have a pending incoming call waiting for our stream, answer it now!
+    if (this.pendingIncomingCall) {
+      const call = this.pendingIncomingCall;
+      this.pendingIncomingCall = null;
+      this.mediaConnection = call;
+      call.answer(stream);
+      this.setupCall(call);
+      return;
     }
+
+    // 2. If we already have an active call, update tracks
+    if (this.mediaConnection && this.mediaConnection.peerConnection) {
+      const pc = this.mediaConnection.peerConnection;
+      const senders = pc.getSenders();
+      for (const track of stream.getTracks()) {
+        const sender = senders.find((s) => s.track && s.track.kind === track.kind);
+        if (sender) {
+          sender.replaceTrack(track).catch((err) => console.warn('replaceTrack warning:', err));
+        } else {
+          try {
+            pc.addTrack(track, stream);
+          } catch (err) {
+            console.warn('addTrack warning:', err);
+          }
+        }
+      }
+      return;
+    }
+
+    // 3. If connected to peer and stream just became ready, initiate call
+    this.initiateMediaCallIfReady();
+
+    // Also notify partner that local stream is ready
+    this.send({ type: 'STREAM_READY', peerId: this.peer?.id });
   }
 
   public setCountdownCallback(cb: ((duration: number) => void) | null) {
@@ -35,6 +69,33 @@ class RemoteManager {
 
   public setFlashCallback(cb: (() => void) | null) {
     this.flashCallback = cb;
+  }
+
+  private initiateMediaCallIfReady() {
+    if (!this.peer || !this.localStream || this.mediaConnection || this.pendingIncomingCall) return;
+
+    const role = useRemoteStore.getState().role;
+    const code = useRemoteStore.getState().roomCode;
+    if (!code) return;
+    const cleanCode = code.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    let targetPeerId: string | null = null;
+    if (role === 'guest') {
+      targetPeerId = `twogether-${cleanCode}-host`;
+    } else if (role === 'host' && this.remotePeerId) {
+      targetPeerId = this.remotePeerId;
+    }
+
+    if (targetPeerId) {
+      try {
+        const call = this.peer.call(targetPeerId, this.localStream);
+        if (call) {
+          this.setupCall(call);
+        }
+      } catch (err) {
+        console.warn('Failed to initiate media call:', err);
+      }
+    }
   }
 
   /**
@@ -83,24 +144,17 @@ class RemoteManager {
         });
 
         peer.on('call', (call) => {
-          this.mediaConnection = call;
           if (this.localStream) {
+            this.mediaConnection = call;
             call.answer(this.localStream);
+            this.setupCall(call);
           } else {
-            call.answer();
+            // Hold until local stream is ready
+            this.pendingIncomingCall = call;
+            call.on('close', () => {
+              if (this.pendingIncomingCall === call) this.pendingIncomingCall = null;
+            });
           }
-
-          call.on('stream', (remoteStream) => {
-            useRemoteStore.getState().setRemoteStream(remoteStream);
-          });
-
-          call.on('close', () => {
-            useRemoteStore.getState().setRemoteStream(null);
-          });
-
-          call.on('error', (err) => {
-            console.error('Media connection error:', err);
-          });
         });
 
         peer.on('error', (err: Error & { type?: string }) => {
@@ -157,27 +211,23 @@ class RemoteManager {
           const conn = peer.connect(hostPeerId, { reliable: true });
           this.setupDataConnection(conn, 'guest', guestName);
 
-          // Initiate call to host if stream is ready
-          if (this.localStream) {
-            const call = peer.call(hostPeerId, this.localStream);
-            this.setupCall(call);
-          }
+          // Initiate call to host if stream is already ready
+          this.initiateMediaCallIfReady();
 
           resolve();
         });
 
         peer.on('call', (call) => {
-          // In case host calls guest
-          this.mediaConnection = call;
           if (this.localStream) {
+            this.mediaConnection = call;
             call.answer(this.localStream);
+            this.setupCall(call);
           } else {
-            call.answer();
+            this.pendingIncomingCall = call;
+            call.on('close', () => {
+              if (this.pendingIncomingCall === call) this.pendingIncomingCall = null;
+            });
           }
-
-          call.on('stream', (remoteStream) => {
-            useRemoteStore.getState().setRemoteStream(remoteStream);
-          });
         });
 
         peer.on('error', (err: Error & { type?: string }) => {
@@ -202,12 +252,35 @@ class RemoteManager {
 
   private setupCall(call: MediaConnection) {
     this.mediaConnection = call;
+
+    // Primary: PeerJS stream event
     call.on('stream', (remoteStream) => {
       useRemoteStore.getState().setRemoteStream(remoteStream);
     });
 
+    // Backup: PeerConnection ontrack event (catches tracks added/replaced dynamically)
+    if (call.peerConnection) {
+      call.peerConnection.ontrack = (event) => {
+        if (event.streams && event.streams[0]) {
+          useRemoteStore.getState().setRemoteStream(event.streams[0]);
+        } else if (event.track) {
+          const existing = useRemoteStore.getState().remoteStream;
+          if (existing) {
+            existing.addTrack(event.track);
+            useRemoteStore.getState().setRemoteStream(existing);
+          } else {
+            const newStream = new MediaStream([event.track]);
+            useRemoteStore.getState().setRemoteStream(newStream);
+          }
+        }
+      };
+    }
+
     call.on('close', () => {
-      useRemoteStore.getState().setRemoteStream(null);
+      if (this.mediaConnection === call) {
+        this.mediaConnection = null;
+        useRemoteStore.getState().setRemoteStream(null);
+      }
     });
 
     call.on('error', (err) => {
@@ -215,21 +288,16 @@ class RemoteManager {
     });
   }
 
-  private setupDataConnection(conn: DataConnection, role: RemoteRole, customName?: string) {
+  private setupDataConnection(conn: DataConnection, _role: RemoteRole, customName?: string) {
     this.dataConnection = conn;
 
     conn.on('open', () => {
       useRemoteStore.getState().setStatus('connected');
       const myName = customName || useRemoteStore.getState().userName;
-      this.send({ type: 'PARTNER_JOINED', name: myName });
+      this.send({ type: 'PARTNER_JOINED', name: myName, peerId: this.peer?.id });
 
-      // If we are guest and have a local stream, ensure call is established
-      if (role === 'guest' && this.peer && this.localStream && !this.mediaConnection) {
-        const cleanCode = (useRemoteStore.getState().roomCode || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const hostPeerId = `twogether-${cleanCode}-host`;
-        const call = this.peer.call(hostPeerId, this.localStream);
-        this.setupCall(call);
-      }
+      // If we have local stream, initiate media call immediately
+      this.initiateMediaCallIfReady();
     });
 
     conn.on('data', (data: unknown) => {
@@ -240,6 +308,7 @@ class RemoteManager {
       useRemoteStore.getState().setStatus('disconnected');
       useRemoteStore.getState().setRemoteStream(null);
       useRemoteStore.getState().setIsPartnerReady(false);
+      this.remotePeerId = null;
     });
 
     conn.on('error', (err) => {
@@ -250,8 +319,19 @@ class RemoteManager {
   private handleIncomingMessage(msg: RemoteMessage) {
     switch (msg.type) {
       case 'PARTNER_JOINED':
+        if (msg.peerId) {
+          this.remotePeerId = msg.peerId;
+        }
         useRemoteStore.getState().setPartnerName(msg.name || 'Partner');
         useRemoteStore.getState().setStatus('connected');
+        this.initiateMediaCallIfReady();
+        break;
+
+      case 'STREAM_READY':
+        if (msg.peerId) {
+          this.remotePeerId = msg.peerId;
+        }
+        this.initiateMediaCallIfReady();
         break;
 
       case 'SYNC_READY':
@@ -295,6 +375,7 @@ class RemoteManager {
       case 'PEER_LEFT':
         useRemoteStore.getState().setStatus('disconnected');
         useRemoteStore.getState().setRemoteStream(null);
+        this.remotePeerId = null;
         break;
     }
   }
@@ -324,6 +405,17 @@ class RemoteManager {
       }
       this.mediaConnection = null;
     }
+
+    if (this.pendingIncomingCall) {
+      try {
+        this.pendingIncomingCall.close();
+      } catch {
+        // Ignore
+      }
+      this.pendingIncomingCall = null;
+    }
+
+    this.remotePeerId = null;
 
     if (this.peer) {
       try {
