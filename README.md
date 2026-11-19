@@ -7,6 +7,14 @@ Twogether brings the authentic, joyful nostalgia of physical Japanese & Korean-s
 
 ---
 
+## 🎬 Demo
+
+<video src="brag-output/brag.mp4" poster="brag-output/brag.jpg" controls playsinline width="100%">
+  <a href="brag-output/brag.mp4">Watch the Twogether launch video</a>
+</video>
+
+---
+
 ## ✨ Features
 
 - **Side-by-Side Dual Viewfinder**: Real-time dual camera panels for couples & best friends.
